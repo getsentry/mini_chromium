@@ -9,7 +9,6 @@
 #include <bit>
 #include <cstdint>
 #include <cstring>
-#include <span>
 #include <type_traits>
 
 #include "base/numerics/basic_ops_impl.h"
