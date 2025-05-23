@@ -6,7 +6,6 @@
 #define MINI_CHROMIUM_BASE_NUMERICS_BYTE_CONVERSIONS_H_
 
 #include <array>
-#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
