@@ -64,14 +64,16 @@ base::ScopedFILE g_log_file;
 }  // namespace
 
 bool InitLogging(const LoggingSettings& settings) {
+  base::ScopedFILE log_file;
   if (settings.logging_dest & LOG_TO_FILE) {
-    g_log_file.reset(
+    log_file.reset(
         base::OpenFile(base::FilePath(settings.log_file_path), "w"));
-    if (!g_log_file) {
+    if (!log_file) {
       return false;
     }
   }
 
+  g_log_file = std::move(log_file);
   g_logging_destination = settings.logging_dest;
   return true;
 }
