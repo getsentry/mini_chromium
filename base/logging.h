@@ -12,6 +12,7 @@
 #include <sstream>
 #include <string>
 
+#include "base/files/file_path.h"
 #include "build/build_config.h"
 
 namespace logging {
@@ -42,11 +43,14 @@ enum : LoggingDestination {
 
 struct LoggingSettings {
   LoggingDestination logging_dest = LOG_DEFAULT;
+
+  // The log file path, used when logging_dest includes LOG_TO_FILE. The file
+  // is opened for writing (truncating any existing content) during
+  // InitLogging().
+  base::FilePath::StringType log_file_path;
 };
 
 // Sets the logging destination.
-//
-// TODO(jperaza): LOG_TO_FILE is not yet supported.
 bool InitLogging(const LoggingSettings& settings);
 
 typedef int LogSeverity;

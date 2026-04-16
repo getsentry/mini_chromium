@@ -34,6 +34,8 @@
 #endif
 
 #include "base/check_op.h"
+#include "base/files/file_util.h"
+#include "base/files/scoped_file.h"
 #include "base/immediate_crash.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -55,12 +57,23 @@ LogMessageHandlerFunction g_log_message_handler = nullptr;
 
 LoggingDestination g_logging_destination = LOG_DEFAULT;
 
+// Held across the program lifetime when LOG_TO_FILE is enabled. Closed by its
+// destructor at program exit.
+base::ScopedFILE g_log_file;
+
 }  // namespace
 
 bool InitLogging(const LoggingSettings& settings) {
-  DCHECK_EQ(settings.logging_dest & LOG_TO_FILE, 0u);
-
   g_logging_destination = settings.logging_dest;
+
+  if ((settings.logging_dest & LOG_TO_FILE) && !settings.log_file_path.empty()) {
+    g_log_file.reset(
+        base::OpenFile(base::FilePath(settings.log_file_path), "w"));
+    if (!g_log_file) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -142,6 +155,13 @@ void LogMessage::Flush() {
   if ((g_logging_destination & LOG_TO_STDERR)) {
     fprintf(stderr, "%s", str_newline.c_str());
     fflush(stderr);
+  }
+
+  if ((g_logging_destination & LOG_TO_FILE)) {
+    if (FILE* f = g_log_file.get()) {
+      fwrite(str_newline.data(), 1, str_newline.size(), f);
+      fflush(f);
+    }
   }
 
   if ((g_logging_destination & LOG_TO_SYSTEM_DEBUG_LOG) != 0) {
