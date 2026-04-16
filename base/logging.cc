@@ -64,8 +64,6 @@ base::ScopedFILE g_log_file;
 }  // namespace
 
 bool InitLogging(const LoggingSettings& settings) {
-  g_logging_destination = settings.logging_dest;
-
   if ((settings.logging_dest & LOG_TO_FILE) && !settings.log_file_path.empty()) {
     g_log_file.reset(
         base::OpenFile(base::FilePath(settings.log_file_path), "w"));
@@ -74,6 +72,7 @@ bool InitLogging(const LoggingSettings& settings) {
     }
   }
 
+  g_logging_destination = settings.logging_dest;
   return true;
 }
 
