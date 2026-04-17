@@ -59,8 +59,10 @@ LoggingDestination g_logging_destination = LOG_DEFAULT;
 
 int g_min_log_level = LOG_INFO;
 
-// Held across the program lifetime when LOG_TO_FILE is enabled. Closed by its
-// destructor at program exit.
+// Held across the program lifetime when LOG_TO_FILE is enabled. The file is
+// opened lazily on the first emitted message; the ScopedFILE destructor
+// closes it at program exit.
+base::FilePath::StringType g_log_file_path;
 base::ScopedFILE g_log_file;
 
 }  // namespace
@@ -74,16 +76,14 @@ void SetMinLogLevel(int level) {
 }
 
 bool InitLogging(const LoggingSettings& settings) {
-  base::ScopedFILE log_file;
-  if (settings.logging_dest & LOG_TO_FILE) {
-    log_file.reset(
-        base::OpenFile(base::FilePath(settings.log_file_path), "a"));
-    if (!log_file) {
-      return false;
-    }
+  if ((settings.logging_dest & LOG_TO_FILE) && settings.log_file_path.empty()) {
+    return false;
   }
 
-  g_log_file = std::move(log_file);
+  // Close any previously opened file; the new path is opened lazily on the
+  // first emitted message.
+  g_log_file.reset();
+  g_log_file_path = settings.log_file_path;
   g_logging_destination = settings.logging_dest;
   g_min_log_level = settings.min_log_level;
   return true;
@@ -170,6 +170,10 @@ void LogMessage::Flush() {
   }
 
   if ((g_logging_destination & LOG_TO_FILE)) {
+    if (!g_log_file) {
+      g_log_file.reset(
+          base::OpenFile(base::FilePath(g_log_file_path), "a"));
+    }
     if (FILE* f = g_log_file.get()) {
       fwrite(str_newline.data(), 1, str_newline.size(), f);
       fflush(f);
