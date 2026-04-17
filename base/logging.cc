@@ -40,6 +40,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/synchronization/lock.h"
 
 namespace logging {
 
@@ -61,9 +62,11 @@ int g_min_log_level = LOG_INFO;
 
 // Held across the program lifetime when LOG_TO_FILE is enabled. The file is
 // opened lazily on the first emitted message; the ScopedFILE destructor
-// closes it at program exit.
+// closes it at program exit. g_log_file_lock guards lazy open and writes so
+// concurrent LOG calls don't race.
 base::FilePath::StringType g_log_file_path;
 base::ScopedFILE g_log_file;
+base::Lock g_log_file_lock;
 
 }  // namespace
 
@@ -82,8 +85,11 @@ bool InitLogging(const LoggingSettings& settings) {
 
   // Close any previously opened file; the new path is opened lazily on the
   // first emitted message.
-  g_log_file.reset();
-  g_log_file_path = settings.log_file_path;
+  {
+    base::AutoLock lock(g_log_file_lock);
+    g_log_file.reset();
+    g_log_file_path = settings.log_file_path;
+  }
   g_logging_destination = settings.logging_dest;
   g_min_log_level = settings.min_log_level;
   return true;
@@ -170,6 +176,7 @@ void LogMessage::Flush() {
   }
 
   if ((g_logging_destination & LOG_TO_FILE)) {
+    base::AutoLock lock(g_log_file_lock);
     if (!g_log_file) {
       g_log_file.reset(
           base::OpenFile(base::FilePath(g_log_file_path), "a"));
