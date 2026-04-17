@@ -83,11 +83,8 @@ LogMessageHandlerFunction GetLogMessageHandler();
 int GetMinLogLevel();
 void SetMinLogLevel(int level);
 
-// VLOG(N) fires when the current minimum severity is low enough to admit a
-// LogMessage of severity -N. This mirrors LOG_IS_ON's severity check rather
-// than implementing Chromium's per-file --v flag.
 static inline int GetVlogLevel(const char*) {
-  return -GetMinLogLevel();
+  return std::numeric_limits<int>::max();
 }
 
 #if BUILDFLAG(IS_WIN)
