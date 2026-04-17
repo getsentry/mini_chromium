@@ -41,18 +41,6 @@ enum : LoggingDestination {
 #endif
 };
 
-struct LoggingSettings {
-  LoggingDestination logging_dest = LOG_DEFAULT;
-
-  // The log file path, used when logging_dest includes LOG_TO_FILE. The file
-  // is opened for writing (truncating any existing content) during
-  // InitLogging().
-  base::FilePath::StringType log_file_path;
-};
-
-// Sets the logging destination.
-bool InitLogging(const LoggingSettings& settings);
-
 typedef int LogSeverity;
 const LogSeverity LOG_VERBOSE = -1;
 const LogSeverity LOG_INFO = 0;
@@ -61,6 +49,22 @@ const LogSeverity LOG_ERROR = 2;
 const LogSeverity LOG_ERROR_REPORT = 3;
 const LogSeverity LOG_FATAL = 4;
 const LogSeverity LOG_NUM_SEVERITIES = 5;
+
+struct LoggingSettings {
+  LoggingDestination logging_dest = LOG_DEFAULT;
+
+  // The log file path, used when logging_dest includes LOG_TO_FILE. The file
+  // is opened for writing (truncating any existing content) during
+  // InitLogging().
+  base::FilePath::StringType log_file_path;
+
+  // Minimum severity that will be emitted. Defaults to LOG_INFO so every
+  // non-verbose message passes through.
+  int min_log_level = LOG_INFO;
+};
+
+// Sets the logging destination.
+bool InitLogging(const LoggingSettings& settings);
 
 #if defined(NDEBUG)
 const LogSeverity LOG_DFATAL = LOG_ERROR;
@@ -77,9 +81,8 @@ typedef bool (*LogMessageHandlerFunction)(LogSeverity severity,
 void SetLogMessageHandler(LogMessageHandlerFunction log_message_handler);
 LogMessageHandlerFunction GetLogMessageHandler();
 
-static inline int GetMinLogLevel() {
-  return LOG_INFO;
-}
+int GetMinLogLevel();
+void SetMinLogLevel(int level);
 
 static inline int GetVlogLevel(const char*) {
   return std::numeric_limits<int>::max();

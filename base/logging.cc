@@ -57,11 +57,21 @@ LogMessageHandlerFunction g_log_message_handler = nullptr;
 
 LoggingDestination g_logging_destination = LOG_DEFAULT;
 
+int g_min_log_level = LOG_INFO;
+
 // Held across the program lifetime when LOG_TO_FILE is enabled. Closed by its
 // destructor at program exit.
 base::ScopedFILE g_log_file;
 
 }  // namespace
+
+int GetMinLogLevel() {
+  return g_min_log_level;
+}
+
+void SetMinLogLevel(int level) {
+  g_min_log_level = level;
+}
 
 bool InitLogging(const LoggingSettings& settings) {
   base::ScopedFILE log_file;
@@ -75,6 +85,7 @@ bool InitLogging(const LoggingSettings& settings) {
 
   g_log_file = std::move(log_file);
   g_logging_destination = settings.logging_dest;
+  g_min_log_level = settings.min_log_level;
   return true;
 }
 
