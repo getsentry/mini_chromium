@@ -86,10 +86,13 @@ bool InitLogging(const LoggingSettings& settings) {
   }
 
   // Close any previously opened file; the new path is opened lazily on the
-  // first emitted message.
+  // first emitted message. The old file is moved out of the critical section
+  // so its destructor (and any PLOG from a failing fclose) runs after the
+  // lock is released, avoiding a re-entrant acquire.
+  base::ScopedFILE old_log_file;
   {
     base::AutoLock lock(g_log_file_lock);
-    g_log_file.reset();
+    old_log_file = std::move(g_log_file);
     g_log_file_path = settings.log_file_path;
   }
   g_logging_destination = settings.logging_dest;
