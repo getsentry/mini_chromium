@@ -63,10 +63,12 @@ int g_min_log_level = LOG_INFO;
 // Held across the program lifetime when LOG_TO_FILE is enabled. The file is
 // opened lazily on the first emitted message; the ScopedFILE destructor
 // closes it at program exit. g_log_file_lock guards lazy open and writes so
-// concurrent LOG calls don't race.
+// concurrent LOG calls don't race, and is declared first so it outlives
+// g_log_file during static destruction -- ScopedFILECloser may PLOG on
+// fclose failure, which re-enters Flush() and needs the lock.
+base::Lock g_log_file_lock;
 base::FilePath::StringType g_log_file_path;
 base::ScopedFILE g_log_file;
-base::Lock g_log_file_lock;
 
 }  // namespace
 
