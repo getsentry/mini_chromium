@@ -77,7 +77,7 @@ bool InitLogging(const LoggingSettings& settings) {
   base::ScopedFILE log_file;
   if (settings.logging_dest & LOG_TO_FILE) {
     log_file.reset(
-        base::OpenFile(base::FilePath(settings.log_file_path), "w"));
+        base::OpenFile(base::FilePath(settings.log_file_path), "a"));
     if (!log_file) {
       return false;
     }

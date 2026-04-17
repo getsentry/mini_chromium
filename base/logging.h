@@ -54,8 +54,7 @@ struct LoggingSettings {
   LoggingDestination logging_dest = LOG_DEFAULT;
 
   // The log file path, used when logging_dest includes LOG_TO_FILE. The file
-  // is opened for writing (truncating any existing content) during
-  // InitLogging().
+  // is opened for appending during InitLogging().
   base::FilePath::StringType log_file_path;
 
   // Minimum severity that will be emitted. Defaults to LOG_INFO so every
