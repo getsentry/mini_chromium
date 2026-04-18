@@ -7,7 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <atomic>
 #include <iomanip>
+#include <memory>
 #include <ostream>
 
 #if BUILDFLAG(IS_POSIX)
@@ -34,10 +36,12 @@
 #endif
 
 #include "base/check_op.h"
+#include "base/files/file_util.h"
 #include "base/immediate_crash.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/synchronization/lock.h"
 
 namespace logging {
 
@@ -53,14 +57,56 @@ const char* const log_severity_names[] = {
 
 LogMessageHandlerFunction g_log_message_handler = nullptr;
 
-LoggingDestination g_logging_destination = LOG_DEFAULT;
+std::atomic<LoggingDestination> g_logging_destination{LOG_DEFAULT};
+
+std::atomic<int> g_min_log_level{LOG_INFO};
+
+// Closes a log file silently on destruction. Unlike base::ScopedFILECloser,
+// LogFileCloser does not PLOG on fclose failure. We may be inside static
+// destruction where a re-entrant Flush() would access the log file while it
+// is being torn down.
+struct LogFileCloser {
+  void operator()(FILE* file) const {
+    if (file) {
+      fclose(file);
+    }
+  }
+};
+
+// File-bound logging state. All fields are protected by `lock`. The handle
+// is opened lazily on the first emitted message; `enabled` is cleared when
+// the open fails or the path is empty, and reset by InitLogging.
+struct LogFile {
+  base::Lock lock;
+  base::FilePath::StringType path;
+  std::unique_ptr<FILE, LogFileCloser> handle;
+  bool enabled = true;
+};
+LogFile g_log_file;
 
 }  // namespace
 
-bool InitLogging(const LoggingSettings& settings) {
-  DCHECK_EQ(settings.logging_dest & LOG_TO_FILE, 0u);
+int GetMinLogLevel() {
+  return g_min_log_level.load(std::memory_order_relaxed);
+}
 
-  g_logging_destination = settings.logging_dest;
+void SetMinLogLevel(int level) {
+  g_min_log_level.store(level, std::memory_order_relaxed);
+}
+
+bool InitLogging(const LoggingSettings& settings) {
+  // Close any previously opened file; the new path is opened lazily on the
+  // first emitted message. The old handle is moved out of the critical
+  // section so its destructor runs after the lock is released.
+  std::unique_ptr<FILE, LogFileCloser> old_handle;
+  {
+    base::AutoLock lock(g_log_file.lock);
+    old_handle = std::move(g_log_file.handle);
+    g_log_file.path = settings.log_file_path;
+    g_log_file.enabled = true;
+  }
+  g_logging_destination.store(settings.logging_dest, std::memory_order_relaxed);
+  g_min_log_level.store(settings.min_log_level, std::memory_order_relaxed);
   return true;
 }
 
@@ -139,12 +185,34 @@ void LogMessage::Flush() {
     return;
   }
 
-  if ((g_logging_destination & LOG_TO_STDERR)) {
+  const LoggingDestination destination =
+      g_logging_destination.load(std::memory_order_relaxed);
+
+  if ((destination & LOG_TO_STDERR)) {
     fprintf(stderr, "%s", str_newline.c_str());
     fflush(stderr);
   }
 
-  if ((g_logging_destination & LOG_TO_SYSTEM_DEBUG_LOG) != 0) {
+  if ((destination & LOG_TO_FILE)) {
+    base::AutoLock lock(g_log_file.lock);
+    if (g_log_file.enabled && !g_log_file.handle) {
+      if (g_log_file.path.empty()) {
+        g_log_file.enabled = false;
+      } else {
+        g_log_file.handle.reset(
+            base::OpenFile(base::FilePath(g_log_file.path), "a"));
+        if (!g_log_file.handle) {
+          g_log_file.enabled = false;
+        }
+      }
+    }
+    if (FILE* f = g_log_file.handle.get()) {
+      fwrite(str_newline.data(), 1, str_newline.size(), f);
+      fflush(f);
+    }
+  }
+
+  if ((destination & LOG_TO_SYSTEM_DEBUG_LOG) != 0) {
 #if BUILDFLAG(IS_APPLE)
     const bool log_to_system = []() {
       struct stat stderr_stat;
