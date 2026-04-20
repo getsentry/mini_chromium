@@ -55,7 +55,7 @@ struct LoggingSettings {
 
   // The log file path, used when logging_dest includes LOG_TO_FILE. The file
   // is opened lazily for appending on the first emitted message.
-  base::FilePath::StringType log_file_path;
+  base::FilePath log_file_path;
 
   // Minimum severity that will be emitted. Defaults to LOG_INFO so every
   // non-verbose message passes through.

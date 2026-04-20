@@ -78,7 +78,7 @@ struct LogFileCloser {
 // the open fails or the path is empty, and reset by InitLogging.
 struct LogFile {
   base::Lock lock;
-  base::FilePath::StringType path;
+  base::FilePath path;
   std::unique_ptr<FILE, LogFileCloser> handle;
   bool enabled = true;
 };
@@ -199,8 +199,7 @@ void LogMessage::Flush() {
       if (g_log_file.path.empty()) {
         g_log_file.enabled = false;
       } else {
-        g_log_file.handle.reset(
-            base::OpenFile(base::FilePath(g_log_file.path), "a"));
+        g_log_file.handle.reset(base::OpenFile(g_log_file.path, "a"));
         if (!g_log_file.handle) {
           g_log_file.enabled = false;
         }
