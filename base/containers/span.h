@@ -357,10 +357,12 @@ class span : public internal::ExtentStorage<Extent> {
   // for: #constexpr-ctor-field-initializer, #global-scope, #union
   InternalPtrType data_;
 };
+#if __cplusplus < 201703L
 // span<T, Extent>::extent can not be declared inline prior to C++17, hence this
 // definition is required.
 template <class T, size_t Extent, typename InternalPtrType>
 constexpr size_t span<T, Extent, InternalPtrType>::extent;
+#endif
 template <typename It,
           typename T = std::remove_reference_t<iter_reference_t<It>>>
 span(It, StrictNumeric<size_t>) -> span<T>;
