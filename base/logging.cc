@@ -49,11 +49,13 @@ namespace logging {
 
 namespace {
 
-const char* const log_severity_names[] = {"INFO",
-                                          "WARNING",
-                                          "ERROR",
-                                          "ERROR_REPORT",
-                                          "FATAL"};
+const char* const log_severity_names[] = {
+  "INFO",
+  "WARNING",
+  "ERROR",
+  "ERROR_REPORT",
+  "FATAL"
+};
 
 LogMessageHandlerFunction g_log_message_handler = nullptr;
 
@@ -180,11 +182,12 @@ std::string SystemErrorCodeToString(unsigned long error_code) {
     if (len >= 1 && msgbuf[len - 1] == ' ') {
       msgbuf[len - 1] = '\0';
     }
-    return base::StringPrintf(
-        "%s (%lu)", base::WideToUTF8(msgbuf).c_str(), error_code);
+    return base::StringPrintf("%s (%lu)",
+                              base::WideToUTF8(msgbuf).c_str(), error_code);
   }
-  return base::StringPrintf(
-      "Error %lu while retrieving error %lu", GetLastError(), error_code);
+  return base::StringPrintf("Error %lu while retrieving error %lu",
+                            GetLastError(),
+                            error_code);
 }
 #endif  // BUILDFLAG(IS_WIN)
 
@@ -428,7 +431,12 @@ void LogMessage::Init(const char* function) {
   // On Fuchsia, the platform is responsible for adding the process id and
   // thread id, not the process itself.
 #if !BUILDFLAG(IS_FUCHSIA)
-  stream_ << '[' << pid << ':' << thread << ':' << std::setfill('0');
+  stream_ << '['
+          << pid
+          << ':'
+          << thread
+          << ':'
+          << std::setfill('0');
 #endif
 
   // On Fuchsia, the platform is responsible for adding the log timestamp,
@@ -438,19 +446,29 @@ void LogMessage::Init(const char* function) {
   gettimeofday(&tv, nullptr);
   tm local_time;
   localtime_r(&tv.tv_sec, &local_time);
-  stream_ << std::setw(4) << local_time.tm_year + 1900 << std::setw(2)
-          << local_time.tm_mon + 1 << std::setw(2) << local_time.tm_mday << ','
-          << std::setw(2) << local_time.tm_hour << std::setw(2)
-          << local_time.tm_min << std::setw(2) << local_time.tm_sec << '.'
-          << std::setw(6) << tv.tv_usec << ':';
+  stream_ << std::setw(4) << local_time.tm_year + 1900
+          << std::setw(2) << local_time.tm_mon + 1
+          << std::setw(2) << local_time.tm_mday
+          << ','
+          << std::setw(2) << local_time.tm_hour
+          << std::setw(2) << local_time.tm_min
+          << std::setw(2) << local_time.tm_sec
+          << '.'
+          << std::setw(6) << tv.tv_usec
+          << ':';
 #elif BUILDFLAG(IS_WIN)
   SYSTEMTIME local_time;
   GetLocalTime(&local_time);
-  stream_ << std::setw(4) << local_time.wYear << std::setw(2)
-          << local_time.wMonth << std::setw(2) << local_time.wDay << ','
-          << std::setw(2) << local_time.wHour << std::setw(2)
-          << local_time.wMinute << std::setw(2) << local_time.wSecond << '.'
-          << std::setw(3) << local_time.wMilliseconds << ':';
+  stream_ << std::setw(4) << local_time.wYear
+          << std::setw(2) << local_time.wMonth
+          << std::setw(2) << local_time.wDay
+          << ','
+          << std::setw(2) << local_time.wHour
+          << std::setw(2) << local_time.wMinute
+          << std::setw(2) << local_time.wSecond
+          << '.'
+          << std::setw(3) << local_time.wMilliseconds
+          << ':';
 #endif
 
   // On Fuchsia, ~LogMessage() will add the severity, filename and line
@@ -466,7 +484,11 @@ void LogMessage::Init(const char* function) {
       stream_ << "VERBOSE" << -severity_;
     }
 
-    stream_ << ' ' << file_name << ':' << line_ << "] ";
+    stream_ << ' '
+            << file_name
+            << ':'
+            << line_
+            << "] ";
 #if BUILDFLAG(IS_FUCHSIA)
   }
 #endif
@@ -501,7 +523,8 @@ Win32ErrorLogMessage::Win32ErrorLogMessage(const char* function,
                                            int line,
                                            LogSeverity severity,
                                            unsigned long err)
-    : LogMessage(function, file_path, line, severity), err_(err) {}
+    : LogMessage(function, file_path, line, severity), err_(err) {
+}
 
 Win32ErrorLogMessage::~Win32ErrorLogMessage() {
   AppendError();
@@ -535,14 +558,20 @@ ErrnoLogMessage::ErrnoLogMessage(const char* function,
                                  int line,
                                  LogSeverity severity,
                                  int err)
-    : LogMessage(function, file_path, line, severity), err_(err) {}
+    : LogMessage(function, file_path, line, severity),
+      err_(err) {
+}
 
 ErrnoLogMessage::~ErrnoLogMessage() {
   AppendError();
 }
 
 void ErrnoLogMessage::AppendError() {
-  stream() << ": " << base::safe_strerror(err_) << " (" << err_ << ")";
+  stream() << ": "
+           << base::safe_strerror(err_)
+           << " ("
+           << err_
+           << ")";
 }
 
 ErrnoLogMessageFatal::~ErrnoLogMessageFatal() {
