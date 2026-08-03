@@ -10,6 +10,8 @@
 #include <atomic>
 #include <iomanip>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <ostream>
 
 #if BUILDFLAG(IS_POSIX)
@@ -61,6 +63,44 @@ std::atomic<LoggingDestination> g_logging_destination{LOG_DEFAULT};
 
 std::atomic<int> g_min_log_level{LOG_INFO};
 
+// A lock that is safe to acquire before dynamic initialization has run
+#if BUILDFLAG(IS_WIN)
+class LogLock {
+ public:
+  LogLock() = default;
+  LogLock(const LogLock&) = delete;
+  LogLock& operator=(const LogLock&) = delete;
+  void Acquire() { ::AcquireSRWLockExclusive(&lock_); }
+  void Release() { ::ReleaseSRWLockExclusive(&lock_); }
+
+ private:
+  SRWLOCK lock_ = SRWLOCK_INIT;
+};
+#else
+class LogLock {
+ public:
+  LogLock() = default;
+  LogLock(const LogLock&) = delete;
+  LogLock& operator=(const LogLock&) = delete;
+  void Acquire() { mutex_.lock(); }
+  void Release() { mutex_.unlock(); }
+
+ private:
+  std::mutex mutex_;
+};
+#endif
+
+class AutoLogLock {
+ public:
+  explicit AutoLogLock(LogLock& lock) : lock_(lock) { lock_.Acquire(); }
+  ~AutoLogLock() { lock_.Release(); }
+  AutoLogLock(const AutoLogLock&) = delete;
+  AutoLogLock& operator=(const AutoLogLock&) = delete;
+
+ private:
+  LogLock& lock_;
+};
+
 // Closes a log file silently on destruction. Unlike base::ScopedFILECloser,
 // LogFileCloser does not PLOG on fclose failure. We may be inside static
 // destruction where a re-entrant Flush() would access the log file while it
@@ -77,12 +117,18 @@ struct LogFileCloser {
 // is opened lazily on the first emitted message; `enabled` is cleared when
 // the open fails or the path is empty, and reset by InitLogging.
 struct LogFile {
-  base::Lock lock;
-  base::FilePath path;
+  LogLock lock;
+  std::optional<base::FilePath> path;
   std::unique_ptr<FILE, LogFileCloser> handle;
   bool enabled = true;
 };
+
+// Constant-initialized: every member is constant-initializable
+#if defined(__cpp_constinit) && __cpp_constinit >= 201907L
+constinit LogFile g_log_file;
+#else
 LogFile g_log_file;
+#endif
 
 }  // namespace
 
@@ -100,7 +146,7 @@ bool InitLogging(const LoggingSettings& settings) {
   // section so its destructor runs after the lock is released.
   std::unique_ptr<FILE, LogFileCloser> old_handle;
   {
-    base::AutoLock lock(g_log_file.lock);
+    AutoLogLock lock(g_log_file.lock);
     old_handle = std::move(g_log_file.handle);
     g_log_file.path = settings.log_file_path;
     g_log_file.enabled = true;
@@ -194,12 +240,12 @@ void LogMessage::Flush() {
   }
 
   if ((destination & LOG_TO_FILE)) {
-    base::AutoLock lock(g_log_file.lock);
+    AutoLogLock lock(g_log_file.lock);
     if (g_log_file.enabled && !g_log_file.handle) {
-      if (g_log_file.path.empty()) {
+      if (!g_log_file.path || g_log_file.path->empty()) {
         g_log_file.enabled = false;
       } else {
-        g_log_file.handle.reset(base::OpenFile(g_log_file.path, "a"));
+        g_log_file.handle.reset(base::OpenFile(*g_log_file.path, "a"));
         if (!g_log_file.handle) {
           g_log_file.enabled = false;
         }
